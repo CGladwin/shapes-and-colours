@@ -1,17 +1,25 @@
 // App.tsx
-import { FC, useState } from 'react';
+import { FC, useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '@react-three/drei';
 import Sphere, { SphereData } from './Sphere';
 import './index.css';
-import { useControls } from 'leva'
+import { useControls } from 'leva';
+import axios from 'axios';
 // import { NumberKeyframeTrack } from 'three';
 
 const App: FC = () => {
   const [spheres, setSpheres] = useState<SphereData[]>([]);
   const [selectedSphereId, setSelectedSphereId] = useState<string | null>(null);
 
+  const fetchapi = async () => {
+    const response = await axios.get("/api/data");
+    console.log(response.data);
+  }
 
+  useEffect(() => {
+    fetchapi();
+  },[])
   function MyComponent() {
     const { myValue } = useControls({ myValue: 10 })
     return myValue
