@@ -9,6 +9,9 @@ import axios from 'axios';
 // import { NumberKeyframeTrack } from 'three';
 
 const App: FC = () => {
+  // meta.env doesn't seem to import .env file vars
+  // const envir = import.meta.env.BASE_URL;  
+  // console.log(envir);
   const [spheres, setSpheres] = useState<SphereData[]>([]);
   const [selectedSphereId, setSelectedSphereId] = useState<string | null>(null);
 

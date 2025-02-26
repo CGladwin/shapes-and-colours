@@ -2,8 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
+import {dirname} from 'path';
 import path from 'path';
-import { dot } from 'node:test/reporters';
+import { fileURLToPath } from 'url';
+// import { dot } from 'node:test/reporters';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const corsOptions  = {
   origin: ["http://localhost:5173"]
@@ -28,7 +33,7 @@ app.get('/api/data', (req, res) => {
 // Example route
 app.get('/', (req, res) => {
     console.log("server has started")
-    res.json({ message: 'Welcome Home!' });
+    res.json({ message: path.join(__dirname, "../src", "index.html") });
   });
 
 // Start the server
