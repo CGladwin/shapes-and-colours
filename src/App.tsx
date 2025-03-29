@@ -1,72 +1,151 @@
 // App.tsx
-import { FC, useState, useEffect } from 'react';
+import { FC, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '@react-three/drei';
-import Sphere, { SphereData } from './Sphere';
+import { useControls, button, Leva } from 'leva';
+import Sphere, { Primitive, MaterialType } from './Sphere';
 import './index.css';
-import { useControls } from 'leva';
-import axios from 'axios';
-// import { NumberKeyframeTrack } from 'three';
+
+type CameraSettings = {
+  aspect_ratio: number;
+  image_width: number;
+  samples_per_pixel: number;
+  max_depth: number;
+  vfov: number;
+  lookfrom: [number, number, number];
+  lookat: [number, number, number];
+  vup: [number, number, number];
+  defocus_angle: number;
+  focus_dist: number;
+};
+
+type SceneData = {
+  primitives: Primitive[];
+  camera: CameraSettings;
+};
 
 const App: FC = () => {
-  // meta.env doesn't seem to import .env file vars
-  // const envir = import.meta.env.BASE_URL;  
-  // console.log(envir);
-  const [spheres, setSpheres] = useState<SphereData[]>([]);
+  const [spheres, setSpheres] = useState<Primitive[]>([]);
   const [selectedSphereId, setSelectedSphereId] = useState<string | null>(null);
 
-  const fetchapi = async () => {
-    const response = await axios.get("/api/data");
-    console.log(response.data);
-  }
+  // Camera controls with Leva
+  const cameraSettings = useControls('Camera', {
+    aspect_ratio: { value: 16.0 / 9.0, min: 0.1, max: 5, step: 0.1 },
+    image_width: { value: 400, min: 100, max: 2000, step: 100 },
+    samples_per_pixel: { value: 100, min: 1, max: 500, step: 1 },
+    max_depth: { value: 50, min: 1, max: 100, step: 1 },
+    vfov: { value: 20, min: 5, max: 120, step: 1 },
+    lookfrom: { value: [-2, 2, 1] as [number, number, number] },
+    lookat: { value: [0, 0, -1] as [number, number, number] },
+    vup: { value: [0, 1, 0] as [number, number, number] },
+    defocus_angle: { value: 10.0, min: 0, max: 20, step: 0.1 },
+    focus_dist: { value: 3.4, min: 0.1, max: 20, step: 0.1 },
+  });
 
-  useEffect(() => {
-    fetchapi();
-  },[])
-  function MyComponent() {
-    const { myValue } = useControls({ myValue: 10 })
-    return myValue
-  }
+  // Sphere controls with Leva
+  const sphereControls = useControls('Spheres', {
+    Add: button(() => addSphere()),
+    Export: button(() => exportScene()),
+  });
 
-  // Adds a new sphere at the origin with default scale.
+  // Material controls for selected sphere
+  const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
+  useControls('Material', {
+    type: {
+      value: selectedSphere?.material || "lambertian",
+      options: ["lambertian", "metal", "dielectric"],
+      onChange: (value: MaterialType) => {
+        if (selectedSphereId) {
+          setSpheres(spheres.map(s => 
+            s.id === selectedSphereId ? { ...s, material: value } : s
+          ));
+        }
+      }
+    },
+    color: {
+      value: selectedSphere?.color_args || [0.8, 0.8, 0.8],
+      onChange: (value: [number, number, number]) => {
+        if (selectedSphereId) {
+          setSpheres(spheres.map(s => 
+            s.id === selectedSphereId ? { ...s, color_args: value } : s
+          ));
+        }
+      },
+      render: (get) => get('Material.type') !== 'dielectric'
+    },
+    fuzz: {
+      value: 1.0,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      onChange: (value: number) => {
+        if (selectedSphereId) {
+          setSpheres(spheres.map(s => 
+            s.id === selectedSphereId ? { ...s, metal_fuzz: value } : s
+          ));
+        }
+      },
+      render: (get) => get('Material.type') === 'metal'
+    },
+    refractionIndex: {
+      value: 1.5,
+      min: 1,
+      max: 3,
+      step: 0.1,
+      onChange: (value: number) => {
+        if (selectedSphereId) {
+          setSpheres(spheres.map(s => 
+            s.id === selectedSphereId ? { ...s, dielectric_refraction_index: value } : s
+          ));
+        }
+      },
+      render: (get) => get('Material.type') === 'dielectric'
+    }
+  });
+
   const addSphere = () => {
-    const newSphere: SphereData = {
+    const newSphere: Primitive = {
+      type: "sphere",
       id: Math.random().toString(36).substring(2, 9),
       center: [0, 0, 0],
       radius: 1,
       material: "lambertian",
-      color_args: [0,0,0]
+      color_args: [0.8, 0.8, 0.8]
+      
     };
-    setSpheres((prev) => [...prev, newSphere]);
+    setSpheres([...spheres, newSphere]);
     setSelectedSphereId(newSphere.id);
   };
 
-  // Update the properties of a sphere by id.
-  const updateSphere = (
-    id: string,
-    key: 'center' | 'scale',
-    value: number | [number, number, number]
-  ) => {
-    setSpheres((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          if (key === 'center') {
-            return { ...s, center: value as [number, number, number]};
-          } else if (key === 'scale') {
-            return { ...s, scale: value as number};
-          }
-        }
-        return s;
-      })
-    );
-  };
-
-  // Find the currently selected sphere.
-  const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
-
-  // Export the scene (all spheres) to a JSON file.
   const exportScene = () => {
-    const dataStr = JSON.stringify(spheres, null, 2);
+    const primitives: Primitive[] = spheres.map(sphere => {
+      const base: Primitive = {
+        type: "sphere",
+        center: sphere.center,
+        radius: sphere.radius,
+        material: sphere.material,
+        id: sphere.id
+      };
+
+      if (sphere.material === "lambertian" || sphere.material === "metal") {
+        base.color_args = sphere.color_args;
+      }
+      if (sphere.material === "metal") {
+        base.metal_fuzz = sphere.metal_fuzz || 0.5;
+      }
+      if (sphere.material === "dielectric") {
+        base.dielectric_refraction_index = sphere.dielectric_refraction_index || 1.5;
+      }
+
+      return base;
+    });
+
+    const sceneData: SceneData = {
+      primitives,
+      camera: cameraSettings
+    };
+
+    const dataStr = JSON.stringify(sceneData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -77,96 +156,8 @@ const App: FC = () => {
   };
 
   return (
-    
     <div style={{ width: '100vw', height: '100vh' }}>
-      {/* UI panel */}
-      <MyComponent />
-      <div
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          zIndex: 1,
-          background: 'rgba(255,255,255,0.8)',
-          padding: 10,
-          borderRadius: 4,
-        }}
-      >
-        <button onClick={addSphere}>Add Sphere</button>
-        <button onClick={exportScene} style={{ marginLeft: 10 }}>
-          Export Scene
-        </button>
-        {selectedSphere && (
-          <div style={{ marginTop: 10 }}>
-            <div>
-              <label>
-                X:{' '}
-                <input
-                  type="number"
-                  value={selectedSphere.center[0]}
-                  onChange={(e) => {
-                    const x = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'center', [
-                      x,
-                      selectedSphere.center[1],
-                      selectedSphere.center[2],
-                    ]);
-                  }}
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Y:{' '}
-                <input
-                  type="number"
-                  value={selectedSphere.center[1]}
-                  onChange={(e) => {
-                    const y = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'center', [
-                      selectedSphere.center[0],
-                      y,
-                      selectedSphere.center[2],
-                    ]);
-                  }}
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Z:{' '}
-                <input
-                  type="number"
-                  value={selectedSphere.center[2]}
-                  onChange={(e) => {
-                    const z = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'center', [
-                      selectedSphere.center[0],
-                      selectedSphere.center[1],
-                      z,
-                    ]);
-                  }}
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Scale:{' '}
-                <input
-                  type="number"
-                  value={selectedSphere.radius}
-                  step="0.1"
-                  onChange={(e) => {
-                    const scale = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'scale', scale);
-                  }}
-                />
-              </label>
-            </div>
-          </div>
-        )}
-      </div>
-      {/* 3D Scene */}
+      <Leva collapsed />
       <Canvas
         style={{ width: '100vw', height: '100vh', background: '#000' }}
         camera={{ fov: 50, position: [0, 0, 5], near: 0.1, far: 100 }}
@@ -181,7 +172,7 @@ const App: FC = () => {
             onSelect={(id) => setSelectedSphereId(id)}
           />
         ))}
-        <FirstPersonControls activeLook={false}/>
+        <FirstPersonControls activeLook={false} />
       </Canvas>
     </div>
   );

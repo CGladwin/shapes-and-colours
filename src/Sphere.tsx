@@ -1,16 +1,21 @@
 // Sphere.tsx
 import { FC } from 'react';
 
-export interface SphereData {
+export type MaterialType = "lambertian" | "metal" | "dielectric";
+
+export interface Primitive {
+  type: "sphere";
   id: string;
   center: [number, number, number];
   radius: number;
-  material: "lambertian" | "dielectric" | "metal";
-  color_args: [number, number, number];
-}
+  material: MaterialType;
+  color_args?: [number, number, number];
+  metal_fuzz?: number;
+  dielectric_refraction_index?: number;
+};
 
 interface SphereProps {
-  data: SphereData;
+  data: Primitive;
   isSelected: boolean;
   onSelect: (id: string) => void;
 }
