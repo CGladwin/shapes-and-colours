@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import {dirname} from 'path';
 import path from 'path';
@@ -17,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Middleware
-app.use(express.static(path.join(__dirname, "../") )) // serve static files from React App
+app.use(express.static(path.join(__dirname, "../dist") )) // serve static files from React App
 app.use(express.json())
 app.use(express.urlencoded({extended:true})) // for POST/PUT requests
 
@@ -28,14 +27,14 @@ app.use(cors(corsOptions));
 
 // Example route
 app.get('/api/data', (req, res) => {
-  res.json({ message: 'Hello from the API!' });
+  res.json({ message: path.join(__dirname, ".", "index.html") });
 });
 
 // Example route
 app.get('/', (req, res) => {
     console.log("server has started")
-    res.json({ message: path.join(__dirname, "../", "index.html") });
-    // res.sendFile("index.html"); // doesn't work without building
+    // res.json({ message: path.join(__dirname, "../", "index.html") });
+    res.sendFile("index.html"); // doesn't work without building
   });
 
 // Start the server

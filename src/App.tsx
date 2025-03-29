@@ -32,8 +32,10 @@ const App: FC = () => {
   const addSphere = () => {
     const newSphere: SphereData = {
       id: Math.random().toString(36).substring(2, 9),
-      position: [0, 0, 0],
-      scale: 1,
+      center: [0, 0, 0],
+      radius: 1,
+      material: "lambertian",
+      color_args: [0,0,0]
     };
     setSpheres((prev) => [...prev, newSphere]);
     setSelectedSphereId(newSphere.id);
@@ -42,14 +44,14 @@ const App: FC = () => {
   // Update the properties of a sphere by id.
   const updateSphere = (
     id: string,
-    key: 'position' | 'scale',
+    key: 'center' | 'scale',
     value: number | [number, number, number]
   ) => {
     setSpheres((prev) =>
       prev.map((s) => {
         if (s.id === id) {
-          if (key === 'position') {
-            return { ...s, position: value as [number, number, number]};
+          if (key === 'center') {
+            return { ...s, center: value as [number, number, number]};
           } else if (key === 'scale') {
             return { ...s, scale: value as number};
           }
@@ -101,13 +103,13 @@ const App: FC = () => {
                 X:{' '}
                 <input
                   type="number"
-                  value={selectedSphere.position[0]}
+                  value={selectedSphere.center[0]}
                   onChange={(e) => {
                     const x = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'position', [
+                    updateSphere(selectedSphere.id, 'center', [
                       x,
-                      selectedSphere.position[1],
-                      selectedSphere.position[2],
+                      selectedSphere.center[1],
+                      selectedSphere.center[2],
                     ]);
                   }}
                 />
@@ -118,13 +120,13 @@ const App: FC = () => {
                 Y:{' '}
                 <input
                   type="number"
-                  value={selectedSphere.position[1]}
+                  value={selectedSphere.center[1]}
                   onChange={(e) => {
                     const y = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'position', [
-                      selectedSphere.position[0],
+                    updateSphere(selectedSphere.id, 'center', [
+                      selectedSphere.center[0],
                       y,
-                      selectedSphere.position[2],
+                      selectedSphere.center[2],
                     ]);
                   }}
                 />
@@ -135,12 +137,12 @@ const App: FC = () => {
                 Z:{' '}
                 <input
                   type="number"
-                  value={selectedSphere.position[2]}
+                  value={selectedSphere.center[2]}
                   onChange={(e) => {
                     const z = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'position', [
-                      selectedSphere.position[0],
-                      selectedSphere.position[1],
+                    updateSphere(selectedSphere.id, 'center', [
+                      selectedSphere.center[0],
+                      selectedSphere.center[1],
                       z,
                     ]);
                   }}
@@ -152,7 +154,7 @@ const App: FC = () => {
                 Scale:{' '}
                 <input
                   type="number"
-                  value={selectedSphere.scale}
+                  value={selectedSphere.radius}
                   step="0.1"
                   onChange={(e) => {
                     const scale = parseFloat(e.target.value);

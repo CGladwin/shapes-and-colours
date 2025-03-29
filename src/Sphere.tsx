@@ -3,8 +3,10 @@ import { FC } from 'react';
 
 export interface SphereData {
   id: string;
-  position: [number, number, number];
-  scale: number;
+  center: [number, number, number];
+  radius: number;
+  material: "lambertian" | "dielectric" | "metal";
+  color_args: [number, number, number];
 }
 
 interface SphereProps {
@@ -16,8 +18,8 @@ interface SphereProps {
 const Sphere: FC<SphereProps> = ({ data, isSelected, onSelect }) => {
   return (
     <group
-      position={data.position}
-      scale={[data.scale, data.scale, data.scale]}
+      position={data.center}
+      scale={[data.radius, data.radius, data.radius]}
       onClick={(e) => {
         e.stopPropagation(); // Prevent click events from bubbling up
         onSelect(data.id);
@@ -26,7 +28,7 @@ const Sphere: FC<SphereProps> = ({ data, isSelected, onSelect }) => {
       {/* Main sphere */}
       <mesh>
         <icosahedronGeometry args={[1.0, 3]} />
-        <meshToonMaterial color={"0x808080"} />
+        <meshToonMaterial color={0x808080} />
       </mesh>
       {/* Wireframe overlay only for selected sphere */}
       {isSelected && (
