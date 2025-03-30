@@ -1,9 +1,15 @@
 import { FC, useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '@react-three/drei';
-import { useControls, button } from 'leva';
 import Sphere, { Primitive, MaterialType } from './Sphere';
 import './index.css';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 
 type CameraSettings = {
   aspect_ratio: number;
@@ -39,105 +45,10 @@ const App: FC = () => {
     focus_dist: 3.4,
   });
 
-  // Camera controls via Leva – changes are reflected instantly
-  const cameraControls = useControls('Camera', {
-    aspect_ratio: { value: camera.aspect_ratio, min: 0.1, max: 5, step: 0.1 },
-    image_width: { value: camera.image_width, min: 100, max: 2000, step: 100 },
-    samples_per_pixel: { value: camera.samples_per_pixel, min: 1, max: 500, step: 1 },
-    max_depth: { value: camera.max_depth, min: 1, max: 100, step: 1 },
-    vfov: { value: camera.vfov, min: 5, max: 120, step: 1 },
-    lookfrom: { value: camera.lookfrom, step: 0.1 },
-    lookat: { value: camera.lookat, step: 0.1 },
-    vup: { value: camera.vup, step: 0.1 },
-    defocus_angle: { value: camera.defocus_angle, min: 0, max: 20, step: 0.1 },
-    focus_dist: { value: camera.focus_dist, min: 0.1, max: 20, step: 0.1 },
-  });
-
-  useEffect(() => {
-    setCamera(cameraControls);
-  }, [cameraControls]);
-
-  // Global sphere controls: add a sphere and export the scene
-  useControls('Spheres', {
-    Add_Sphere: button(() => addSphere()),
-    Export_Scene: button(() => exportScene()),
-  });
 
   // Find the selected sphere (if any)
   const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
 
-  // Selected sphere controls – these update state instantly via onChange callbacks
-  useControls(
-    'Selected Sphere',
-    () => {
-      if (!selectedSphere) return {};
-      return {
-        X: {
-          value: selectedSphere.center[0],
-          min: -10,
-          max: 10,
-          step: 0.1,
-          onChange: (v: number) => updateSpherePosition(0, v),
-        },
-        Y: {
-          value: selectedSphere.center[1],
-          min: -10,
-          max: 10,
-          step: 0.1,
-          onChange: (v: number) => updateSpherePosition(1, v),
-        },
-        Z: {
-          value: selectedSphere.center[2],
-          min: -10,
-          max: 10,
-          step: 0.1,
-          onChange: (v: number) => updateSpherePosition(2, v),
-        },
-        radius: {
-          value: selectedSphere.radius,
-          min: 0.1,
-          max: 5,
-          step: 0.1,
-          onChange: (v: number) => updateSphereRadius(v),
-        },
-        material: {
-          value: selectedSphere.material,
-          options: { lambertian: 'lambertian', metal: 'metal', dielectric: 'dielectric' },
-          onChange: (v: MaterialType) => updateSphereMaterial(v),
-        },
-        ...(selectedSphere.material !== 'dielectric'
-          ? {
-              color: {
-                value: selectedSphere.color_args ?? [0.8, 0.8, 0.8],
-                label: 'Color',
-                onChange: (v: [number, number, number]) => updateSphereColor(v),
-              },
-            }
-          : {}),
-        ...(selectedSphere.material === 'metal'
-          ? {
-              metal_fuzz: {
-                value: selectedSphere.metal_fuzz ?? 0,
-                min: 0,
-                max: 1,
-                step: 0.01,
-              },
-            }
-          : {}),
-        ...(selectedSphere.material === 'dielectric'
-          ? {
-              dielectric_refraction_index: {
-                value: selectedSphere.dielectric_refraction_index ?? 1.5,
-                min: 1,
-                max: 3,
-                step: 0.1,
-              },
-            }
-          : {}),
-      };
-    },
-    [selectedSphere]
-  );
 
   // Update functions – update the spheres state so the scene re-renders
   const updateSpherePosition = (index: number, value: number) => {
@@ -182,6 +93,10 @@ const App: FC = () => {
     );
   };
 
+  const handleCameraChange = (field: keyof CameraSettings, value: any) => {
+    setCamera(prev => ({ ...prev, [field]: value }));
+  };
+
   // Adds a new sphere and marks it as selected
   const addSphere = () => {
     const newSphere: Primitive = {
@@ -196,86 +111,240 @@ const App: FC = () => {
     setSelectedSphereId(newSphere.id);
   };
 
-  // Export the scene (primitives and camera settings) as JSON
-  const exportScene = () => {
-    const sceneData: SceneData = {
-      primitives: spheres.map((sphere) => ({
-        ...sphere,
-        metal_fuzz: sphere.material === 'metal' ? sphere.metal_fuzz : undefined,
-        dielectric_refraction_index:
-          sphere.material === 'dielectric' ? sphere.dielectric_refraction_index : undefined,
-      })),
-      camera: {
-        aspect_ratio: cameraControls.aspect_ratio,
-        image_width: cameraControls.image_width,
-        samples_per_pixel: cameraControls.samples_per_pixel,
-        max_depth: cameraControls.max_depth,
-        vfov: cameraControls.vfov,
-        lookfrom: cameraControls.lookfrom,
-        lookat: cameraControls.lookat,
-        vup: cameraControls.vup,
-        defocus_angle: cameraControls.defocus_angle,
-        focus_dist: cameraControls.focus_dist,
-      },
-    };
-
-    const dataStr = JSON.stringify(sceneData, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'scene.json';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const updateSphere = (field: keyof Primitive, value: any) => {
+    if (!selectedSphereId) return;
+    setSpheres(prev => prev.map(s => 
+      s.id === selectedSphereId ? { ...s, [field]: value } : s
+    ));
   };
 
+  // Export the scene (primitives and camera settings) as JSON
+  const exportScene = () => {
+  // Prepare primitives data with conditional properties
+  const primitives = spheres.map(sphere => ({
+    type: sphere.type,
+    id: sphere.id,
+    center: sphere.center,
+    radius: sphere.radius,
+    material: sphere.material,
+    color_args: sphere.material !== 'dielectric' ? sphere.color_args : undefined,
+    metal_fuzz: sphere.material === 'metal' ? sphere.metal_fuzz : undefined,
+    dielectric_refraction_index: 
+      sphere.material === 'dielectric' ? sphere.dielectric_refraction_index : undefined
+  }));
+
+  // Create complete scene data
+  const sceneData: SceneData = {
+    primitives: primitives.filter(p => 
+      p.material === 'dielectric' ? 
+        p.dielectric_refraction_index !== undefined : 
+        true
+    ),
+    camera: {
+      aspect_ratio: camera.aspect_ratio,
+      image_width: camera.image_width,
+      samples_per_pixel: camera.samples_per_pixel,
+      max_depth: camera.max_depth,
+      vfov: camera.vfov,
+      lookfrom: camera.lookfrom,
+      lookat: camera.lookat,
+      vup: camera.vup,
+      defocus_angle: camera.defocus_angle,
+      focus_dist: camera.focus_dist
+    }
+  };
+
+  // Create and trigger download
+  const dataStr = JSON.stringify(sceneData, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'scene.json';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
-      <div
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          zIndex: 1,
-          background: 'rgba(255,255,255,0.8)',
-          padding: 10,
-          borderRadius: 4,
-        }}
-      >
-        <button onClick={exportScene} style={{ marginLeft: 10 }}>
-          Export Scene
-        </button>
+    <div className="flex h-screen">
+      {/* Controls Sidebar */}
+      <div className="w-80 p-4 border-r space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Camera Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Field of View</Label>
+              <Slider
+                value={[camera.vfov]}
+                min={5}
+                max={120}
+                step={1}
+                onValueChange={([v]) => handleCameraChange('vfov', v)}
+              />
+              <Input
+                type="number"
+                value={camera.vfov}
+                onChange={(e) => handleCameraChange('vfov', Number(e.target.value))}
+              />
+            </div>
+            {/* Add other camera controls similarly */}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Scene Controls</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button className="w-full" onClick={addSphere}>
+              Add Sphere
+            </Button>
+            <Button className="w-full" onClick={exportScene}>
+              Export Scene
+            </Button>
+          </CardContent>
+        </Card>
+
+        {selectedSphere && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Selected Sphere</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Position</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {selectedSphere.center.map((val, i) => (
+                    <Input
+                      key={i}
+                      type="number"
+                      value={val}
+                      onChange={(e) => {
+                        const newPos = [...selectedSphere.center] as [number, number, number];
+                        newPos[i] = Number(e.target.value);
+                        updateSphere('center', newPos);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Radius</Label>
+                <Slider
+                  value={[selectedSphere.radius]}
+                  min={0.1}
+                  max={5}
+                  step={0.1}
+                  onValueChange={([v]) => updateSphere('radius', v)}
+                />
+                <Input
+                  type="number"
+                  value={selectedSphere.radius}
+                  onChange={(e) => updateSphere('radius', Number(e.target.value))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Material</Label>
+                <Select
+                  value={selectedSphere.material}
+                  onValueChange={(v: MaterialType) => updateSphere('material', v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lambertian">Lambertian</SelectItem>
+                    <SelectItem value="metal">Metal</SelectItem>
+                    <SelectItem value="dielectric">Dielectric</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedSphere.material !== 'dielectric' && (
+                <div className="space-y-2">
+                  <Label>Color</Label>
+                  <Input
+                    type="color"
+                    value={`#${selectedSphere.color_args?.map(x => 
+                      Math.round(x * 255).toString(16).padStart(2, '0')
+                    ).join('')}`}
+                    onChange={(e) => {
+                      const hex = e.target.value.replace('#', '');
+                      const rgb = [
+                        parseInt(hex.substring(0,2), 16) / 255,
+                        parseInt(hex.substring(2,4), 16) / 255,
+                        parseInt(hex.substring(4,6), 16) / 255
+                      ] as [number, number, number];
+                      updateSphere('color_args', rgb);
+                    }}
+                  />
+                </div>
+              )}
+
+              {selectedSphere.material === 'metal' && (
+                <div className="space-y-2">
+                  <Label>Metal Fuzz</Label>
+                  <Slider
+                    value={[selectedSphere.metal_fuzz || 0]}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onValueChange={([v]) => updateSphere('metal_fuzz', v)}
+                  />
+                </div>
+              )}
+
+              {selectedSphere.material === 'dielectric' && (
+                <div className="space-y-2">
+                  <Label>Refraction Index</Label>
+                  <Slider
+                    value={[selectedSphere.dielectric_refraction_index || 1.5]}
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    onValueChange={([v]) => updateSphere('dielectric_refraction_index', v)}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
-      <Canvas
-        style={{ width: '100vw', height: '100vh', background: '#000' }}
-        camera={{
-          fov: cameraControls.vfov,
-          position: cameraControls.lookfrom,
-          near: 0.1,
-          far: 100,
-          up: cameraControls.vup,
-        }}
-        onPointerMissed={(e) => {
-          if (e.target === e.currentTarget) {
-            setSelectedSphereId(null);
-          }
-        }}
-      >
-        <hemisphereLight color={0x0099ff} groundColor={0xaa5500} intensity={1} />
-        {spheres.map((sphere) => (
-          <Sphere
-            key={sphere.id}
-            data={sphere}
-            isSelected={sphere.id === selectedSphereId}
-            onSelect={(id) => setSelectedSphereId(id)}
-          />
-        ))}
-        <FirstPersonControls activeLook={false} />
-      </Canvas>
+
+      {/* 3D Canvas */}
+      <div className="flex-1">
+        <Canvas
+          camera={{
+            fov: camera.vfov,
+            position: camera.lookfrom,
+            near: 0.01,
+            far: 100,
+            up: camera.vup,
+          }}
+          onPointerMissed={() => setSelectedSphereId(null)}
+        >
+          <hemisphereLight color={0x0099ff} groundColor={0xaa5500} intensity={1} />
+          {spheres.map((sphere) => (
+            <Sphere 
+              key={sphere.id} 
+              data={sphere} 
+              isSelected={sphere.id === selectedSphereId} 
+              onSelect={(id) => setSelectedSphereId(id)}
+            />
+          ))}
+          <FirstPersonControls activeLook={false} />
+        </Canvas>
+      </div>
     </div>
   );
+
 };
 
 export default App;
