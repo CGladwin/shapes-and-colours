@@ -1,9 +1,10 @@
 // App.tsx
-import { FC, useState } from 'react';
+import { FC, useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '@react-three/drei';
-import { useControls, button, Leva } from 'leva';
+import GUI from 'lil-gui';
 import Sphere, { Primitive, MaterialType } from './Sphere';
+import axios from 'axios';
 import './index.css';
 
 type CameraSettings = {
@@ -25,83 +26,138 @@ type SceneData = {
 };
 
 const App: FC = () => {
+  // Initialize ref with null as the initial value.
+  const guiRef = useRef<GUI | null>(null);
+  const sphereFolderRef = useRef<GUI | null>(null);
   const [spheres, setSpheres] = useState<Primitive[]>([]);
   const [selectedSphereId, setSelectedSphereId] = useState<string | null>(null);
-
-  // Camera controls with Leva
-  const cameraSettings = useControls('Camera', {
-    aspect_ratio: { value: 16.0 / 9.0, min: 0.1, max: 5, step: 0.1 },
-    image_width: { value: 400, min: 100, max: 2000, step: 100 },
-    samples_per_pixel: { value: 100, min: 1, max: 500, step: 1 },
-    max_depth: { value: 50, min: 1, max: 100, step: 1 },
-    vfov: { value: 20, min: 5, max: 120, step: 1 },
-    lookfrom: { value: [-2, 2, 1] as [number, number, number] },
-    lookat: { value: [0, 0, -1] as [number, number, number] },
-    vup: { value: [0, 1, 0] as [number, number, number] },
-    defocus_angle: { value: 10.0, min: 0, max: 20, step: 0.1 },
-    focus_dist: { value: 3.4, min: 0.1, max: 20, step: 0.1 },
+  const [cameraState, setCameraState] = useState<CameraSettings>({
+    aspect_ratio: 16.0 / 9.0,
+    image_width: 400,
+    samples_per_pixel: 100,
+    max_depth: 50,
+    vfov: 20,
+    lookfrom: [0, 0, 5],
+    lookat: [0, 0, -1],
+    vup: [0, 1, 0],
+    defocus_angle: 10.0,
+    focus_dist: 3.4,
   });
 
-  // Sphere controls with Leva
-  const sphereControls = useControls('Spheres', {
-    Add: button(() => addSphere()),
-    Export: button(() => exportScene()),
-  });
+  useEffect(() => {
+    // Initialize GUI
+    const gui = new GUI();
+    guiRef.current = gui;
 
-  // Material controls for selected sphere
-  const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
-  useControls('Material', {
-    type: {
-      value: selectedSphere?.material || "lambertian",
-      options: ["lambertian", "metal", "dielectric"],
-      onChange: (value: MaterialType) => {
-        if (selectedSphereId) {
-          setSpheres(spheres.map(s => 
-            s.id === selectedSphereId ? { ...s, material: value } : s
-          ));
-        }
-      }
-    },
-    color: {
-      value: selectedSphere?.color_args || [0.8, 0.8, 0.8],
-      onChange: (value: [number, number, number]) => {
-        if (selectedSphereId) {
-          setSpheres(spheres.map(s => 
-            s.id === selectedSphereId ? { ...s, color_args: value } : s
-          ));
-        }
-      },
-      render: (get) => get('Material.type') !== 'dielectric'
-    },
-    fuzz: {
-      value: 1.0,
-      min: 0,
-      max: 1,
-      step: 0.01,
-      onChange: (value: number) => {
-        if (selectedSphereId) {
-          setSpheres(spheres.map(s => 
-            s.id === selectedSphereId ? { ...s, metal_fuzz: value } : s
-          ));
-        }
-      },
-      render: (get) => get('Material.type') === 'metal'
-    },
-    refractionIndex: {
-      value: 1.5,
-      min: 1,
-      max: 3,
-      step: 0.1,
-      onChange: (value: number) => {
-        if (selectedSphereId) {
-          setSpheres(spheres.map(s => 
-            s.id === selectedSphereId ? { ...s, dielectric_refraction_index: value } : s
-          ));
-        }
-      },
-      render: (get) => get('Material.type') === 'dielectric'
+    // Camera controls
+    const cameraFolder = gui.addFolder('Camera');
+    cameraFolder.add(cameraState, 'aspect_ratio', 0.1, 5, 0.1).name('Aspect Ratio');
+    cameraFolder.add(cameraState, 'image_width', 100, 2000, 100).name('Image Width');
+    cameraFolder.add(cameraState, 'samples_per_pixel', 1, 500, 1).name('Samples');
+    cameraFolder.add(cameraState, 'max_depth', 1, 100, 1).name('Max Depth');
+    cameraFolder.add(cameraState, 'vfov', 5, 120, 1).name('FOV');
+    cameraFolder.add(cameraState.lookfrom, '0', -10, 10, 0.1).name('LookFrom X');
+    cameraFolder.add(cameraState.lookfrom, '1', -10, 10, 0.1).name('LookFrom Y');
+    cameraFolder.add(cameraState.lookfrom, '2', -10, 10, 0.1).name('LookFrom Z');
+    // Fix: Use cameraState as the target object instead of its numeric property.
+    cameraFolder.add(cameraState, 'defocus_angle', 0, 20, 0.1).name('Defocus Angle');
+    cameraFolder.add(cameraState, 'focus_dist', 0.1, 20, 0.1).name('Focus Dist');
+
+    // Sphere controls
+    const sphereFolder = gui.addFolder('Spheres');
+    sphereFolderRef.current = sphereFolder;
+    sphereFolder.add({ Add: () => addSphere() }, 'Add').name('Add Sphere');
+    sphereFolder.add({ Export: () => exportScene() }, 'Export').name('Export Scene');
+
+    return () => {
+      gui.destroy();
+    };
+  }, []);
+
+  useEffect(() => {
+    // Update sphere controls when selection changes
+    if (!guiRef.current || !selectedSphereId) return;
+
+    const selectedSphere = spheres.find(s => s.id === selectedSphereId);
+    if (!selectedSphere) return;
+
+    // Clear previous controls
+    if (sphereFolderRef.current) {
+      sphereFolderRef.current.destroy();
+      sphereFolderRef.current = guiRef.current.addFolder('Selected Sphere');
     }
-  });
+
+    // Position controls
+    sphereFolderRef.current.add(selectedSphere.center, '0', -10, 10, 0.1)
+      .name('X').onChange((v: number) => updateSpherePosition(0, v));
+    sphereFolderRef.current.add(selectedSphere.center, '1', -10, 10, 0.1)
+      .name('Y').onChange((v: number) => updateSpherePosition(1, v));
+    sphereFolderRef.current.add(selectedSphere.center, '2', -10, 10, 0.1)
+      .name('Z').onChange((v: number) => updateSpherePosition(2, v));
+
+    // Radius control
+    sphereFolderRef.current.add(selectedSphere, 'radius', 0.1, 5, 0.1)
+      .name('Radius').onChange((v: number) => updateSphereRadius(v));
+
+    // Material controls
+    const materialFolder = sphereFolderRef.current.addFolder('Material');
+    materialFolder.add(selectedSphere, 'material', ['lambertian', 'metal', 'dielectric'])
+      .name('Type').onChange((v: MaterialType) => updateSphereMaterial(v));
+
+    if (selectedSphere.material !== 'dielectric') {
+      materialFolder.addColor(selectedSphere, 'color_args').name('Color')
+        .onChange((v: [number, number, number]) => updateSphereColor(v));
+    }
+
+    if (selectedSphere.material === 'metal') {
+      materialFolder.add(selectedSphere, 'metal_fuzz', 0, 1, 0.01).name('Fuzz');
+    }
+
+    if (selectedSphere.material === 'dielectric') {
+      materialFolder.add(selectedSphere, 'dielectric_refraction_index', 1, 3, 0.1)
+        .name('Refraction Index');
+    }
+
+    sphereFolderRef.current.open();
+  }, [selectedSphereId, spheres]);
+
+  const updateSpherePosition = (index: number, value: number) => {
+    setSpheres(spheres.map(s => {
+      if (s.id === selectedSphereId) {
+        const newCenter = [...s.center] as [number, number, number];
+        newCenter[index] = value;
+        return { ...s, center: newCenter };
+      }
+      return s;
+    }));
+  };
+
+  const updateSphereRadius = (value: number) => {
+    setSpheres(spheres.map(s => 
+      s.id === selectedSphereId ? { ...s, radius: value } : s
+    ));
+  };
+
+  const updateSphereMaterial = (value: MaterialType) => {
+    setSpheres(spheres.map(s => {
+      if (s.id === selectedSphereId) {
+        const updated: Primitive = { ...s, material: value };
+        if (value === 'dielectric') {
+          updated.dielectric_refraction_index = 1.5;
+        } else {
+          updated.color_args = [0.8, 0.8, 0.8];
+        }
+        return updated;
+      }
+      return s;
+    }));
+  };
+
+  const updateSphereColor = (value: [number, number, number]) => {
+    setSpheres(spheres.map(s => 
+      s.id === selectedSphereId ? { ...s, color_args: value } : s
+    ));
+  };
 
   const addSphere = () => {
     const newSphere: Primitive = {
@@ -111,38 +167,21 @@ const App: FC = () => {
       radius: 1,
       material: "lambertian",
       color_args: [0.8, 0.8, 0.8]
-      
     };
     setSpheres([...spheres, newSphere]);
     setSelectedSphereId(newSphere.id);
   };
 
   const exportScene = () => {
-    const primitives: Primitive[] = spheres.map(sphere => {
-      const base: Primitive = {
-        type: "sphere",
-        center: sphere.center,
-        radius: sphere.radius,
-        material: sphere.material,
-        id: sphere.id
-      };
-
-      if (sphere.material === "lambertian" || sphere.material === "metal") {
-        base.color_args = sphere.color_args;
-      }
-      if (sphere.material === "metal") {
-        base.metal_fuzz = sphere.metal_fuzz || 0.5;
-      }
-      if (sphere.material === "dielectric") {
-        base.dielectric_refraction_index = sphere.dielectric_refraction_index || 1.5;
-      }
-
-      return base;
-    });
-
     const sceneData: SceneData = {
-      primitives,
-      camera: cameraSettings
+      primitives: spheres.map(sphere => ({
+        ...sphere,
+        metal_fuzz: sphere.material === "metal" ? sphere.metal_fuzz : undefined,
+        dielectric_refraction_index: sphere.material === "dielectric" 
+          ? sphere.dielectric_refraction_index 
+          : undefined
+      })),
+      camera: cameraState
     };
 
     const dataStr = JSON.stringify(sceneData, null, 2);
@@ -151,16 +190,23 @@ const App: FC = () => {
     const link = document.createElement('a');
     link.href = url;
     link.download = 'scene.json';
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <Leva collapsed />
       <Canvas
         style={{ width: '100vw', height: '100vh', background: '#000' }}
-        camera={{ fov: 50, position: [0, 0, 5], near: 0.1, far: 100 }}
+        camera={{
+          fov: cameraState.vfov,
+          position: cameraState.lookfrom,
+          near: 0.1,
+          far: 100,
+          up: cameraState.vup          
+        }}
         onPointerMissed={() => setSelectedSphereId(null)}
       >
         <hemisphereLight color={0x0099ff} groundColor={0xaa5500} intensity={1} />
