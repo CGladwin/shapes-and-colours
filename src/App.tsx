@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeProvider } from "@/components/ui/theme-provider"
+import axios from 'axios';
 
 
 type CameraSettings = {
@@ -45,53 +47,18 @@ const App: FC = () => {
     focus_dist: 3.4,
   });
 
+  const fetchapi = async () => {
+    const response = await axios.get("/api/data");
+    console.log(response.data);
+  }
+
+  useEffect(() => {
+    fetchapi();
+  },[])
+
 
   // Find the selected sphere (if any)
   const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
-
-
-  // Update functions – update the spheres state so the scene re-renders
-  const updateSpherePosition = (index: number, value: number) => {
-    setSpheres((prev) =>
-      prev.map((s) => {
-        if (s.id === selectedSphereId) {
-          const newCenter = [...s.center] as [number, number, number];
-          newCenter[index] = value;
-          return { ...s, center: newCenter };
-        }
-        return s;
-      })
-    );
-  };
-
-  const updateSphereRadius = (value: number) => {
-    setSpheres((prev) =>
-      prev.map((s) => (s.id === selectedSphereId ? { ...s, radius: value } : s))
-    );
-  };
-
-  const updateSphereMaterial = (value: MaterialType) => {
-    setSpheres((prev) =>
-      prev.map((s) => {
-        if (s.id === selectedSphereId) {
-          const updated: Primitive = { ...s, material: value };
-          if (value === 'dielectric') {
-            updated.dielectric_refraction_index = 1.5;
-          } else {
-            updated.color_args = [0.8, 0.8, 0.8];
-          }
-          return updated;
-        }
-        return s;
-      })
-    );
-  };
-
-  const updateSphereColor = (value: [number, number, number]) => {
-    setSpheres((prev) =>
-      prev.map((s) => (s.id === selectedSphereId ? { ...s, color_args: value } : s))
-    );
-  };
 
   const handleCameraChange = (field: keyof CameraSettings, value: any) => {
     setCamera(prev => ({ ...prev, [field]: value }));
@@ -169,7 +136,8 @@ const App: FC = () => {
 };
 
   return (
-    <div className="flex h-screen">
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      {<div className="flex h-screen">
       {/* Controls Sidebar */}
       <div className="w-80 p-4 border-r space-y-4">
         <Card>
@@ -342,7 +310,9 @@ const App: FC = () => {
           <FirstPersonControls activeLook={false} />
         </Canvas>
       </div>
-    </div>
+    </div>}
+    </ThemeProvider>
+    
   );
 
 };
