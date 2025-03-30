@@ -4,15 +4,15 @@ import { FC } from 'react';
 export type MaterialType = "lambertian" | "metal" | "dielectric";
 
 export interface Primitive {
-  type: "sphere";
   id: string;
+  type: "sphere";
   center: [number, number, number];
   radius: number;
   material: MaterialType;
   color_args?: [number, number, number];
   metal_fuzz?: number;
   dielectric_refraction_index?: number;
-};
+}
 
 interface SphereProps {
   data: Primitive;
