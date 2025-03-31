@@ -43,8 +43,8 @@ const App: FC = () => {
     lookfrom: [0, 0, 5],
     lookat: [0, 0, -1],
     vup: [0, 1, 0],
-    defocus_angle: 10.0,
-    focus_dist: 3.4,
+    defocus_angle: 0.6,
+    focus_dist: 10.0,
   });
 
   const fetchapi = async () => {
@@ -124,7 +124,7 @@ const App: FC = () => {
         samples_per_pixel: camera.samples_per_pixel,
         max_depth: camera.max_depth,
         vfov: camera.vfov,
-        lookfrom: camera.lookfrom,
+        lookfrom: [camera.lookfrom[0],camera.lookfrom[1],camera.lookfrom[2]-3],
         lookat: camera.lookat,
         vup: camera.vup,
         defocus_angle: camera.defocus_angle,
@@ -134,7 +134,7 @@ const App: FC = () => {
 
     // Create and trigger download
     const dataStr = JSON.stringify(sceneData, null, 2);
-    fetch(`${import.meta.env.VITE_API_URL}/upload`, {
+    fetch(`${import.meta.env.VITE_API_URL}/generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: dataStr
@@ -142,22 +142,25 @@ const App: FC = () => {
       .then(response => {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         console.log(response);// Parse JSON response
-        return response.json();
+        return response.blob();
       })
-      .then(data => console.log("Success:", data))
+      .then(blob => {
+        console.log("Success");
+        const url = URL.createObjectURL(blob);
+    
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'scene.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      })
       .catch(error => console.error("Error:", error));
     
     // alert(handleUpload)
     // const blob = new Blob([dataStr], { type: 'application/json' });
-    // const url = URL.createObjectURL(blob);
-    
-    // const link = document.createElement('a');
-    // link.href = url;
-    // link.download = 'scene.json';
-    // document.body.appendChild(link);
-    // link.click();
-    // document.body.removeChild(link);
-    // URL.revokeObjectURL(url);
+
 };
 
   return (
