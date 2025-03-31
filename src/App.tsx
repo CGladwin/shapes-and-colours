@@ -1,19 +1,51 @@
-// App.tsx
 import { FC, useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '@react-three/drei';
-import Sphere, { SphereData } from './Sphere';
+import Sphere, { SphereType, MaterialType } from './Sphere';
 import './index.css';
-import { useControls } from 'leva';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeProvider } from "@/components/ui/theme-provider"
 import axios from 'axios';
-// import { NumberKeyframeTrack } from 'three';
+
+// types cannot have fields added later, interfaces can
+type CameraSettings = {
+  aspect_ratio: number;
+  image_width: number;
+  samples_per_pixel: number;
+  max_depth: number;
+  vfov: number;
+  lookfrom: [number, number, number];
+  lookat: [number, number, number];
+  vup: [number, number, number];
+  defocus_angle: number;
+  focus_dist: number;
+};
+
+type SceneData = {
+  primitives: SphereType[];
+  camera: CameraSettings;
+};
 
 const App: FC = () => {
-  // meta.env doesn't seem to import .env file vars
-  // const envir = import.meta.env.BASE_URL;  
-  // console.log(envir);
-  const [spheres, setSpheres] = useState<SphereData[]>([]);
+  const [spheres, setSpheres] = useState<SphereType[]>([]);
   const [selectedSphereId, setSelectedSphereId] = useState<string | null>(null);
+  const [camera, setCamera] = useState<CameraSettings>({
+    aspect_ratio: 16.0 / 9.0,
+    image_width: 400,
+    samples_per_pixel: 100,
+    max_depth: 50,
+    vfov: 20,
+    lookfrom: [0, 0, 5],
+    lookat: [0, 0, -1],
+    vup: [0, 1, 0],
+    defocus_angle: 0.6,
+    focus_dist: 10.0,
+  });
 
   const fetchapi = async () => {
     const response = await axios.get("/api/data");
@@ -23,166 +55,294 @@ const App: FC = () => {
   useEffect(() => {
     fetchapi();
   },[])
-  function MyComponent() {
-    const { myValue } = useControls({ myValue: 10 })
-    return myValue
-  }
 
-  // Adds a new sphere at the origin with default scale.
+  useEffect(() => { 
+    window.addEventListener("keydown", function(e) {
+  if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+      e.preventDefault();
+  }
+}, false);
+  })
+
+
+  // Find the selected sphere (if any)
+  const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
+
+  const handleCameraChange = (field: keyof CameraSettings, value: unknown) => {
+    setCamera(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Adds a new sphere and marks it as selected
   const addSphere = () => {
-    const newSphere: SphereData = {
+    const newSphere: SphereType = {
+      type: 'sphere',
       id: Math.random().toString(36).substring(2, 9),
-      position: [0, 0, 0],
-      scale: 1,
+      center: [0, 0, -5],
+      radius: 1,
+      material: 'lambertian',
+      color_args: [0.8, 0.8, 0.8],
     };
     setSpheres((prev) => [...prev, newSphere]);
     setSelectedSphereId(newSphere.id);
   };
 
-  // Update the properties of a sphere by id.
-  const updateSphere = (
-    id: string,
-    key: 'position' | 'scale',
-    value: number | [number, number, number]
-  ) => {
-    setSpheres((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          if (key === 'position') {
-            return { ...s, position: value as [number, number, number]};
-          } else if (key === 'scale') {
-            return { ...s, scale: value as number};
-          }
-        }
-        return s;
-      })
-    );
+  const updateSphere = (field: keyof SphereType, value: unknown) => {
+    if (!selectedSphereId) return;
+    setSpheres(prev => prev.map(s => 
+      s.id === selectedSphereId ? { ...s, [field]: value } : s
+    ));
   };
 
-  // Find the currently selected sphere.
-  const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
-
-  // Export the scene (all spheres) to a JSON file.
+  // Export the scene (primitives and camera settings) as JSON
   const exportScene = () => {
-    const dataStr = JSON.stringify(spheres, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'scene.json';
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+    // Prepare primitives data with conditional properties
+    const primitives = spheres.map(sphere => ({
+      type: sphere.type,
+      id: sphere.id,
+      center: sphere.center,
+      radius: sphere.radius,
+      material: sphere.material,
+      color_args: sphere.material !== 'dielectric' 
+        ? sphere.color_args?.map((e) => {
+          return Number(e.toFixed(2));
+      }) as [number,number,number] : undefined,
+      metal_fuzz: sphere.material === 'metal' ? sphere.metal_fuzz : undefined,
+      dielectric_refraction_index: 
+        sphere.material === 'dielectric' ? sphere.dielectric_refraction_index : undefined
+    }));
+
+    // Create complete scene data
+    const sceneData: SceneData = {
+      primitives: primitives.filter(p => 
+        p.material === 'dielectric' ? 
+          p.dielectric_refraction_index !== undefined : 
+          true
+      ),
+      camera: {
+        aspect_ratio: camera.aspect_ratio,
+        image_width: camera.image_width,
+        samples_per_pixel: camera.samples_per_pixel,
+        max_depth: camera.max_depth,
+        vfov: camera.vfov,
+        lookfrom: [camera.lookfrom[0],camera.lookfrom[1],camera.lookfrom[2]-3],
+        lookat: camera.lookat,
+        vup: camera.vup,
+        defocus_angle: camera.defocus_angle,
+        focus_dist: camera.focus_dist
+      }
+    };
+
+    // Create and trigger download
+    const dataStr = JSON.stringify(sceneData, null, 2);
+    fetch(`${import.meta.env.VITE_API_URL}/generate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: dataStr
+      })
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        console.log(response);// Parse JSON response
+        return response.blob();
+      })
+      .then(blob => {
+        console.log("Success");
+        const url = URL.createObjectURL(blob);
+    
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'scene.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      })
+      .catch(error => console.error("Error:", error));
+    
+    // alert(handleUpload)
+    // const blob = new Blob([dataStr], { type: 'application/json' });
+
+};
 
   return (
-    
-    <div style={{ width: '100vw', height: '100vh' }}>
-      {/* UI panel */}
-      <MyComponent />
-      <div
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          zIndex: 1,
-          background: 'rgba(255,255,255,0.8)',
-          padding: 10,
-          borderRadius: 4,
-        }}
-      >
-        <button onClick={addSphere}>Add Sphere</button>
-        <button onClick={exportScene} style={{ marginLeft: 10 }}>
-          Export Scene
-        </button>
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      {<div className="flex h-screen">
+      {/* Controls Sidebar */}
+      <div className="w-80 p-4 border-r space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Camera Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Field of View</Label>
+              <Slider
+                value={[camera.vfov]}
+                min={5}
+                max={120}
+                step={1}
+                onValueChange={([v]) => handleCameraChange('vfov', v)}
+              />
+              <Input
+                type="number"
+                value={camera.vfov}
+                onChange={(e) => handleCameraChange('vfov', Number(e.target.value))}
+              />
+            </div>
+            {/* Add other camera controls similarly */}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Scene Controls</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button className="w-full" onClick={addSphere}>
+              Add Sphere
+            </Button>
+            <Button className="w-full" onClick={exportScene}>
+              Export Scene
+            </Button>
+          </CardContent>
+        </Card>
+
         {selectedSphere && (
-          <div style={{ marginTop: 10 }}>
-            <div>
-              <label>
-                X:{' '}
-                <input
-                  type="number"
-                  value={selectedSphere.position[0]}
-                  onChange={(e) => {
-                    const x = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'position', [
-                      x,
-                      selectedSphere.position[1],
-                      selectedSphere.position[2],
-                    ]);
-                  }}
+          <Card>
+            <CardHeader>
+              <CardTitle>Selected Sphere</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Position</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {selectedSphere.center.map((val, i) => (
+                    <Input
+                      key={i}
+                      type="number"
+                      value={val}
+                      onChange={(e) => {
+                        const newPos = [...selectedSphere.center] as [number, number, number];
+                        newPos[i] = Number(e.target.value);
+                        updateSphere('center', newPos);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Radius</Label>
+                <Slider
+                  value={[selectedSphere.radius]}
+                  min={0.1}
+                  max={5}
+                  step={0.1}
+                  onValueChange={([v]) => updateSphere('radius', v)}
                 />
-              </label>
-            </div>
-            <div>
-              <label>
-                Y:{' '}
-                <input
+                <Input
                   type="number"
-                  value={selectedSphere.position[1]}
-                  onChange={(e) => {
-                    const y = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'position', [
-                      selectedSphere.position[0],
-                      y,
-                      selectedSphere.position[2],
-                    ]);
-                  }}
+                  value={selectedSphere.radius}
+                  onChange={(e) => updateSphere('radius', Number(e.target.value))}
                 />
-              </label>
-            </div>
-            <div>
-              <label>
-                Z:{' '}
-                <input
-                  type="number"
-                  value={selectedSphere.position[2]}
-                  onChange={(e) => {
-                    const z = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'position', [
-                      selectedSphere.position[0],
-                      selectedSphere.position[1],
-                      z,
-                    ]);
-                  }}
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Scale:{' '}
-                <input
-                  type="number"
-                  value={selectedSphere.scale}
-                  step="0.1"
-                  onChange={(e) => {
-                    const scale = parseFloat(e.target.value);
-                    updateSphere(selectedSphere.id, 'scale', scale);
-                  }}
-                />
-              </label>
-            </div>
-          </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Material</Label>
+                <Select
+                  value={selectedSphere.material}
+                  onValueChange={(v: MaterialType) => updateSphere('material', v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lambertian">Lambertian</SelectItem>
+                    <SelectItem value="metal">Metal</SelectItem>
+                    <SelectItem value="dielectric">Dielectric</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedSphere.material !== 'dielectric' && (
+                <div className="space-y-2">
+                  <Label>Color</Label>
+                  <Input
+                    type="color"
+                    value={`#${selectedSphere.color_args?.map(x => 
+                      Math.round(x * 255).toString(16).padStart(2, '0')
+                    ).join('')}`}
+                    onChange={(e) => {
+                      const hex = e.target.value.replace('#', '');
+                      const rgb = [
+                        parseInt(hex.substring(0,2), 16) / 255,
+                        parseInt(hex.substring(2,4), 16) / 255,
+                        parseInt(hex.substring(4,6), 16) / 255
+                      ] as [number, number, number];
+                      updateSphere('color_args', rgb);
+                    }}
+                  />
+                </div>
+              )}
+
+              {selectedSphere.material === 'metal' && (
+                <div className="space-y-2">
+                  <Label>Metal Fuzz</Label>
+                  <Slider
+                    value={[selectedSphere.metal_fuzz || 0]}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onValueChange={([v]) => updateSphere('metal_fuzz', v)}
+                  />
+                </div>
+              )}
+
+              {selectedSphere.material === 'dielectric' && (
+                <div className="space-y-2">
+                  <Label>Refraction Index</Label>
+                  <Slider
+                    value={[selectedSphere.dielectric_refraction_index || 1.5]}
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    onValueChange={([v]) => updateSphere('dielectric_refraction_index', v)}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
       </div>
-      {/* 3D Scene */}
-      <Canvas
-        style={{ width: '100vw', height: '100vh', background: '#000' }}
-        camera={{ fov: 50, position: [0, 0, 5], near: 0.1, far: 100 }}
-        onPointerMissed={() => setSelectedSphereId(null)}
-      >
-        <hemisphereLight color={0x0099ff} groundColor={0xaa5500} intensity={1} />
-        {spheres.map((sphere) => (
-          <Sphere
-            key={sphere.id}
-            data={sphere}
-            isSelected={sphere.id === selectedSphereId}
-            onSelect={(id) => setSelectedSphereId(id)}
-          />
-        ))}
-        <FirstPersonControls activeLook={false}/>
-      </Canvas>
-    </div>
+
+      {/* 3D Canvas */}
+      <div className="flex-1">
+        <Canvas
+          camera={{
+            fov: camera.vfov,
+            position: camera.lookfrom,
+            near: 0.01,
+            far: 100,
+            up: camera.vup,
+          }}
+          onPointerMissed={() => setSelectedSphereId(null)}
+        >
+          <hemisphereLight color={0x0099ff} groundColor={0xaa5500} intensity={1} />
+          {spheres.map((sphere) => (
+            <Sphere 
+              key={sphere.id} 
+              data={sphere} 
+              isSelected={sphere.id === selectedSphereId} 
+              onSelect={(id) => setSelectedSphereId(id)}
+            />
+          ))}
+          <FirstPersonControls activeLook={false} />
+        </Canvas>
+      </div>
+    </div>}
+    </ThemeProvider>
+    
   );
+
 };
 
 export default App;

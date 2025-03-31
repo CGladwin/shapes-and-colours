@@ -1,0 +1,3 @@
+[submodule "server/cpp/RayTracing-Directed-Study"]
+	path = server/cpp/RayTracing-Directed-Study
+	url = https://github.com/CGladwin/RayTracing-Directed-Study

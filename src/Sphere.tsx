@@ -1,42 +1,66 @@
 // Sphere.tsx
 import { FC } from 'react';
+import { Color } from 'three';
 
-export interface SphereData {
+export type MaterialType = "lambertian" | "metal" | "dielectric";
+
+// TODO: Turn into algebraic data type 
+export interface SphereType {
+  type: "sphere";
   id: string;
-  position: [number, number, number];
-  scale: number;
-}
+  center: [number, number, number];
+  radius: number;
+  material: MaterialType;
+  color_args?: [number, number, number];
+  metal_fuzz?: number;
+  dielectric_refraction_index?: number;
+};
 
 interface SphereProps {
-  data: SphereData;
+  data: SphereType;
   isSelected: boolean;
   onSelect: (id: string) => void;
 }
 
 const Sphere: FC<SphereProps> = ({ data, isSelected, onSelect }) => {
-  return (
-    <group
-      position={data.position}
-      scale={[data.scale, data.scale, data.scale]}
-      onClick={(e) => {
-        e.stopPropagation(); // Prevent click events from bubbling up
-        onSelect(data.id);
-      }}
-    >
-      {/* Main sphere */}
-      <mesh>
-        <icosahedronGeometry args={[1.0, 3]} />
-        <meshToonMaterial color={"0x808080"} />
-      </mesh>
-      {/* Wireframe overlay only for selected sphere */}
-      {isSelected && (
-        <mesh scale={[1.001, 1.001, 1.001]}>
-          <icosahedronGeometry args={[1.0, 3]} />
-          <meshBasicMaterial color={0xffffff} wireframe />
+  // Convert color_args to Three.js Color
+  const sphereColor = data.color_args 
+    ? new Color(...data.color_args)
+    : new Color(0.8, 0.8, 0.8);
+    return (
+      <group
+        position={data.center}
+        scale={[data.radius, data.radius, data.radius]}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onSelect(data.id);
+        }}
+      >
+        {/* Main sphere with material */}
+        <mesh castShadow={true} receiveShadow={true}>
+          <icosahedronGeometry args={[1, 3]} />
+          <meshStandardMaterial 
+            color={sphereColor} 
+            metalness={data.material === 'metal' ? 0.3 : 0}
+            roughness={data.material === 'metal' ? data.metal_fuzz : 1}
+            transparent={data.material === 'dielectric'}
+            opacity={data.material === 'dielectric' ? 0.8 : 1}
+          />
         </mesh>
-      )}
-    </group>
-  );
+  
+        {/* Selection outline */}
+        {isSelected && (
+          <mesh scale={1.02}>
+            <icosahedronGeometry args={[1, 3]} />
+            <meshBasicMaterial 
+              color="white" 
+              wireframe
+              wireframeLinewidth={2}
+            />
+          </mesh>
+        )}
+      </group>
+    );
 };
 
 export default Sphere;
