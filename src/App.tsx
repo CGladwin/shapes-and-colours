@@ -1,7 +1,7 @@
 import { FC, useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '@react-three/drei';
-import Sphere, { Primitive, MaterialType } from './Sphere';
+import Sphere, { SphereType, MaterialType } from './Sphere';
 import './index.css';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeProvider } from "@/components/ui/theme-provider"
 import axios from 'axios';
 
-
+// types cannot have fields added later, interfaces can
 type CameraSettings = {
   aspect_ratio: number;
   image_width: number;
@@ -27,12 +27,12 @@ type CameraSettings = {
 };
 
 type SceneData = {
-  primitives: Primitive[];
+  primitives: SphereType[];
   camera: CameraSettings;
 };
 
 const App: FC = () => {
-  const [spheres, setSpheres] = useState<Primitive[]>([]);
+  const [spheres, setSpheres] = useState<SphereType[]>([]);
   const [selectedSphereId, setSelectedSphereId] = useState<string | null>(null);
   const [camera, setCamera] = useState<CameraSettings>({
     aspect_ratio: 16.0 / 9.0,
@@ -56,20 +56,28 @@ const App: FC = () => {
     fetchapi();
   },[])
 
+  useEffect(() => { 
+    window.addEventListener("keydown", function(e) {
+  if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+      e.preventDefault();
+  }
+}, false);
+  })
+
 
   // Find the selected sphere (if any)
   const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
 
-  const handleCameraChange = (field: keyof CameraSettings, value: any) => {
+  const handleCameraChange = (field: keyof CameraSettings, value: unknown) => {
     setCamera(prev => ({ ...prev, [field]: value }));
   };
 
   // Adds a new sphere and marks it as selected
   const addSphere = () => {
-    const newSphere: Primitive = {
+    const newSphere: SphereType = {
       type: 'sphere',
       id: Math.random().toString(36).substring(2, 9),
-      center: [0, 0, -10],
+      center: [0, 0, -5],
       radius: 1,
       material: 'lambertian',
       color_args: [0.8, 0.8, 0.8],
@@ -78,7 +86,7 @@ const App: FC = () => {
     setSelectedSphereId(newSphere.id);
   };
 
-  const updateSphere = (field: keyof Primitive, value: any) => {
+  const updateSphere = (field: keyof SphereType, value: unknown) => {
     if (!selectedSphereId) return;
     setSpheres(prev => prev.map(s => 
       s.id === selectedSphereId ? { ...s, [field]: value } : s
@@ -87,52 +95,69 @@ const App: FC = () => {
 
   // Export the scene (primitives and camera settings) as JSON
   const exportScene = () => {
-  // Prepare primitives data with conditional properties
-  const primitives = spheres.map(sphere => ({
-    type: sphere.type,
-    id: sphere.id,
-    center: sphere.center,
-    radius: sphere.radius,
-    material: sphere.material,
-    color_args: sphere.material !== 'dielectric' ? sphere.color_args : undefined,
-    metal_fuzz: sphere.material === 'metal' ? sphere.metal_fuzz : undefined,
-    dielectric_refraction_index: 
-      sphere.material === 'dielectric' ? sphere.dielectric_refraction_index : undefined
-  }));
+    // Prepare primitives data with conditional properties
+    const primitives = spheres.map(sphere => ({
+      type: sphere.type,
+      id: sphere.id,
+      center: sphere.center,
+      radius: sphere.radius,
+      material: sphere.material,
+      color_args: sphere.material !== 'dielectric' 
+        ? sphere.color_args?.map((e) => {
+          return Number(e.toFixed(2));
+      }) as [number,number,number] : undefined,
+      metal_fuzz: sphere.material === 'metal' ? sphere.metal_fuzz : undefined,
+      dielectric_refraction_index: 
+        sphere.material === 'dielectric' ? sphere.dielectric_refraction_index : undefined
+    }));
 
-  // Create complete scene data
-  const sceneData: SceneData = {
-    primitives: primitives.filter(p => 
-      p.material === 'dielectric' ? 
-        p.dielectric_refraction_index !== undefined : 
-        true
-    ),
-    camera: {
-      aspect_ratio: camera.aspect_ratio,
-      image_width: camera.image_width,
-      samples_per_pixel: camera.samples_per_pixel,
-      max_depth: camera.max_depth,
-      vfov: camera.vfov,
-      lookfrom: camera.lookfrom,
-      lookat: camera.lookat,
-      vup: camera.vup,
-      defocus_angle: camera.defocus_angle,
-      focus_dist: camera.focus_dist
-    }
-  };
+    // Create complete scene data
+    const sceneData: SceneData = {
+      primitives: primitives.filter(p => 
+        p.material === 'dielectric' ? 
+          p.dielectric_refraction_index !== undefined : 
+          true
+      ),
+      camera: {
+        aspect_ratio: camera.aspect_ratio,
+        image_width: camera.image_width,
+        samples_per_pixel: camera.samples_per_pixel,
+        max_depth: camera.max_depth,
+        vfov: camera.vfov,
+        lookfrom: camera.lookfrom,
+        lookat: camera.lookat,
+        vup: camera.vup,
+        defocus_angle: camera.defocus_angle,
+        focus_dist: camera.focus_dist
+      }
+    };
 
-  // Create and trigger download
-  const dataStr = JSON.stringify(sceneData, null, 2);
-  const blob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'scene.json';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+    // Create and trigger download
+    const dataStr = JSON.stringify(sceneData, null, 2);
+    fetch(`${import.meta.env.VITE_API_URL}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: dataStr
+      })
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        console.log(response);// Parse JSON response
+        return response.json();
+      })
+      .then(data => console.log("Success:", data))
+      .catch(error => console.error("Error:", error));
+    
+    // alert(handleUpload)
+    // const blob = new Blob([dataStr], { type: 'application/json' });
+    // const url = URL.createObjectURL(blob);
+    
+    // const link = document.createElement('a');
+    // link.href = url;
+    // link.download = 'scene.json';
+    // document.body.appendChild(link);
+    // link.click();
+    // document.body.removeChild(link);
+    // URL.revokeObjectURL(url);
 };
 
   return (

@@ -4,7 +4,8 @@ import { Color } from 'three';
 
 export type MaterialType = "lambertian" | "metal" | "dielectric";
 
-export interface Primitive {
+// TODO: Turn into algebraic data type 
+export interface SphereType {
   type: "sphere";
   id: string;
   center: [number, number, number];
@@ -16,7 +17,7 @@ export interface Primitive {
 };
 
 interface SphereProps {
-  data: Primitive;
+  data: SphereType;
   isSelected: boolean;
   onSelect: (id: string) => void;
 }
@@ -36,11 +37,11 @@ const Sphere: FC<SphereProps> = ({ data, isSelected, onSelect }) => {
         }}
       >
         {/* Main sphere with material */}
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={true} receiveShadow={true}>
           <icosahedronGeometry args={[1, 3]} />
           <meshStandardMaterial 
             color={sphereColor} 
-            metalness={data.material === 'metal' ? 0.8 : 0}
+            metalness={data.material === 'metal' ? 0.3 : 0}
             roughness={data.material === 'metal' ? data.metal_fuzz : 1}
             transparent={data.material === 'dielectric'}
             opacity={data.material === 'dielectric' ? 0.8 : 1}

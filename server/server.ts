@@ -20,10 +20,24 @@ app.use(express.static(path.join(__dirname, "../dist") )) // serve static files 
 app.use(express.json())
 app.use(express.urlencoded({extended:true})) // for POST/PUT requests
 
-const corsOptions  = {
-  origin: ["http://localhost:5174"]
-}
-app.use(cors(corsOptions));
+// const corsOptions  = {
+//   origin: ["http://localhost:5173"]
+// }
+app.use(cors({
+  origin: "http://localhost:5173", // Your React app's origin
+  methods: ["GET", "POST", "PUT", "DELETE"], // Explicitly allow POST
+  allowedHeaders: ["Content-Type"]
+}));
+
+// Modify your POST endpoint
+app.post('/upload', (req, res) => {
+  console.log("Received data:", req.body);
+  if (!req.body) {
+    res.status(400).json({ error: "No data received" });
+  }
+  res.status(200).json({ message: req.body });
+  res.end();
+});
 
 // Example route
 app.get('/api/data', (req, res) => {
