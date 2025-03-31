@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeProvider } from "@/components/ui/theme-provider"
 import axios from 'axios';
+import CameraUpdater from './CameraUpdater';
 
 // types cannot have fields added later, interfaces can
 type CameraSettings = {
@@ -67,6 +68,12 @@ const App: FC = () => {
 
   // Find the selected sphere (if any)
   const selectedSphere = spheres.find((s) => s.id === selectedSphereId);
+
+  const updateCameraLookFrom = (position: [number, number, number]) => {
+    setCamera((prev) => ({ ...prev, lookfrom: position.map((val) => {return Number(val.toFixed(2))} ) as [number,number,number]
+    }));
+  };
+
 
   const handleCameraChange = (field: keyof CameraSettings, value: unknown) => {
     setCamera(prev => ({ ...prev, [field]: value }));
@@ -125,7 +132,7 @@ const App: FC = () => {
         max_depth: camera.max_depth,
         vfov: camera.vfov,
         lookfrom: [camera.lookfrom[0],camera.lookfrom[1],camera.lookfrom[2]-3],
-        lookat: camera.lookat,
+        lookat: [camera.lookfrom[0],camera.lookfrom[1],camera.lookfrom[2]-6],
         vup: camera.vup,
         defocus_angle: camera.defocus_angle,
         focus_dist: camera.focus_dist
@@ -335,6 +342,7 @@ const App: FC = () => {
               onSelect={(id) => setSelectedSphereId(id)}
             />
           ))}
+          <CameraUpdater onUpdate={updateCameraLookFrom}></CameraUpdater>
           <FirstPersonControls activeLook={false} />
         </Canvas>
       </div>
