@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeProvider } from "@/components/ui/theme-provider"
-import axios from 'axios';
 import CameraUpdater from './CameraUpdater';
 
 // types cannot have fields added later, interfaces can
@@ -48,21 +47,12 @@ const App: FC = () => {
     focus_dist: 10.0,
   });
 
-  const fetchapi = async () => {
-    const response = await axios.get("/api/data");
-    console.log(response.data);
-  }
-
-  useEffect(() => {
-    fetchapi();
-  },[])
-
   useEffect(() => { 
     window.addEventListener("keydown", function(e) {
-  if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
-      e.preventDefault();
-  }
-}, false);
+      if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+          e.preventDefault();
+      }
+    }, false);
   })
 
 
@@ -120,11 +110,11 @@ const App: FC = () => {
 
     // Create complete scene data
     const sceneData: SceneData = {
-      primitives: primitives.filter(p => 
-        p.material === 'dielectric' ? 
-          p.dielectric_refraction_index !== undefined : 
-          true
-      ),
+      primitives: primitives.map(p => (
+        p.material === 'dielectric' && (p.dielectric_refraction_index ??= 0.1),
+        p.material === 'metal' && (p.metal_fuzz ??= 0.1),
+        p
+      )),
       camera: {
         aspect_ratio: camera.aspect_ratio,
         image_width: camera.image_width,
@@ -141,6 +131,10 @@ const App: FC = () => {
 
     // Create and trigger download
     const dataStr = JSON.stringify(sceneData, null, 2);
+    if(sceneData.primitives.length < 1){
+      alert("error! I dont see shapes or colors!");
+      return;
+    }
     fetch(`${import.meta.env.VITE_API_URL}/generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -164,9 +158,6 @@ const App: FC = () => {
         URL.revokeObjectURL(url);
       })
       .catch(error => console.error("Error:", error));
-    
-    // alert(handleUpload)
-    // const blob = new Blob([dataStr], { type: 'application/json' });
 
 };
 
@@ -257,7 +248,15 @@ const App: FC = () => {
                 <Label>Material</Label>
                 <Select
                   value={selectedSphere.material}
-                  onValueChange={(v: MaterialType) => updateSphere('material', v)}
+                  onValueChange={(v: MaterialType) => {
+                    updateSphere('material', v);
+                    if(selectedSphere.material === "metal"){
+                      selectedSphere.metal_fuzz = 0.2;
+                    }
+                    if(selectedSphere.material === "dielectric"){
+                      updateSphere('dielectric_refraction_index',0);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select material" />

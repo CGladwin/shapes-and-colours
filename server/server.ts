@@ -23,9 +23,6 @@ app.use(express.static(path.join(__dirname, "../dist") )) // serve static files 
 app.use(express.json())
 app.use(express.urlencoded({extended:true})) // for POST/PUT requests
 
-// const corsOptions  = {
-//   origin: ["http://localhost:5173"]
-// }
 app.use(cors({
   origin: "http://localhost:5173", // Your React app's origin
   methods: ["GET", "POST", "PUT", "DELETE"], // Explicitly allow POST
@@ -60,16 +57,16 @@ app.post('/generate-image', async (req, res) => {
 
     // Execute C++ program
     console.log("calling c++ raytracing program");
-    const cppProcess = spawn('./server/cpp/RayTracing-Directed-Study/src/main.out', [tempOutputPath,tempInputPath]);
-
+    const cppProcess = spawn(path.join(__dirname,'/cpp/RayTracing-Directed-Study/src/main.out'), [tempOutputPath,tempInputPath]);
     // Handle process completion
-    cppProcess.on('close', async (code) => {
-      console.log("raytracing finished!");
-      if (code !== 0) {
-        cleanup(tempInputPath, tempOutputPath);
+    cppProcess.on('exit', async (code) => {
+      console.log(`raytracing finished with code: ${code}`);
+      if (code !== 0 || code == null) {
+        // cleanup(tempInputPath, tempOutputPath);
         res.status(500).json({error:'Failed to generate image'});
+        res.end();
+        return;
       }
-
       // Read and send the generated PNG
       try {
         const image = await fs.promises.readFile(tempOutputPath);
@@ -105,7 +102,7 @@ app.get('/api/data', (req, res) => {
 app.get('/', (req, res) => {
     console.log("server has started")
     // res.json({ message: path.join(__dirname, "../", "index.html") });
-    res.sendFile("index.html"); // doesn't work without building
+    res.sendFile("index.html"); // doesn't work without building (switch to public directory when in production)
   });
 
 // Start the server
