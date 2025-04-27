@@ -1,3 +1,6 @@
 [submodule "server/cpp/RayTracing-Directed-Study"]
 	path = server/cpp/RayTracing-Directed-Study
 	url = https://github.com/CGladwin/RayTracing-Directed-Study
+[submodule "server/py/ai-png-upscaling"]
+	path = server/py/ai-png-upscaling
+	url = https://github.com/CGladwin/ai-png-upscaling

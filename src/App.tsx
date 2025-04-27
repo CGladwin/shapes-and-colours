@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeProvider } from "@/components/ui/theme-provider"
 import CameraUpdater from './CameraUpdater';
@@ -24,6 +25,8 @@ type CameraSettings = {
   vup: [number, number, number];
   defocus_angle: number;
   focus_dist: number;
+  denoise: number;
+  upscale: boolean;
 };
 
 type SceneData = {
@@ -45,6 +48,8 @@ const App: FC = () => {
     vup: [0, 1, 0],
     defocus_angle: 0.6,
     focus_dist: 10.0,
+    denoise: 0,
+    upscale: false
   });
 
   useEffect(() => { 
@@ -125,7 +130,9 @@ const App: FC = () => {
         lookat: [camera.lookfrom[0],camera.lookfrom[1],camera.lookfrom[2]-6],
         vup: camera.vup,
         defocus_angle: camera.defocus_angle,
-        focus_dist: camera.focus_dist
+        focus_dist: camera.focus_dist,
+        denoise: camera.denoise,
+        upscale: camera.upscale
       }
     };
 
@@ -189,6 +196,32 @@ const App: FC = () => {
             {/* Add other camera controls similarly */}
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Postprocessing</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Denoising</Label>
+              <Slider
+                value={[camera.denoise]}
+                min={0}
+                max={3}
+                step={1}
+                onValueChange={([v]) => handleCameraChange('denoise', v)}
+              />
+              <div className="flex items-center gap-2">
+                <Label htmlFor="upscale-switch">Upscale</Label>
+                <Switch
+                  id="upscale-switch"
+                  checked={camera.upscale}
+                  onCheckedChange={(v) => handleCameraChange('upscale', v)}
+                />
+              </div>
+            </div>
+            {/* Add other camera controls similarly */}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -248,15 +281,7 @@ const App: FC = () => {
                 <Label>Material</Label>
                 <Select
                   value={selectedSphere.material}
-                  onValueChange={(v: MaterialType) => {
-                    updateSphere('material', v);
-                    if(selectedSphere.material === "metal"){
-                      selectedSphere.metal_fuzz = 0.2;
-                    }
-                    if(selectedSphere.material === "dielectric"){
-                      updateSphere('dielectric_refraction_index',0);
-                    }
-                  }}
+                  onValueChange={(v: MaterialType) => updateSphere('material', v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select material" />

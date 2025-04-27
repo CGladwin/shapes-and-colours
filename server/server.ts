@@ -58,6 +58,24 @@ app.post('/generate-image', async (req, res) => {
     // Execute C++ program
     console.log("calling c++ raytracing program");
     const cppProcess = spawn(path.join(__dirname,'/cpp/RayTracing-Directed-Study/src/main.out'), [tempOutputPath,tempInputPath]);
+    
+        // Listen for data coming from the C++ program's stdout
+    cppProcess.stderr.on('data', (data) => {
+      // Assume the C++ program outputs progress info in a parseable format
+      // For example: "progress: 42"
+      const output = data.toString();
+      console.log(output);
+      // const progressMatch = output.match(/progress:\s*(\d+)/i);
+      // if (progressMatch) {
+      //   const progress = parseInt(progressMatch[1], 10);
+      //   // Emit progress update to connected clients
+      //   io.emit('progress', { progress });
+      // } else {
+      //   // You might want to log or handle other output
+      //   console.log(`C++ output: ${output}`);
+      // }
+    });
+    
     // Handle process completion
     cppProcess.on('exit', async (code) => {
       console.log(`raytracing finished with code: ${code}`);
@@ -69,8 +87,46 @@ app.post('/generate-image', async (req, res) => {
       }
       // Read and send the generated PNG
       try {
-        const image = await fs.promises.readFile(tempOutputPath);
-        res.type('png').send(image);
+        const { denoise, upscale } = payload.camera;
+    
+        if (denoise !== 0 || upscale) {
+          console.log('Running post‑processing (denoise, upscale)...');
+    
+          // Build absolute path to your Python script
+          const upscalerScript = path.join(
+            __dirname,
+            'py',
+            'ai-png-upscaling',
+            'ai_upscaler.py'
+          );
+    
+          const scaleValue = upscale ? 4 : 0;
+          await new Promise<void>((resolve, reject) => {
+            const post = spawn('server/py/ai-png-upscaling/env/bin/python', [
+              upscalerScript,
+              tempOutputPath,
+              tempOutputPath,
+              `--denoise=${denoise}`,
+              `--scale=${scaleValue}`,
+            ]);
+    
+            post.stdout.on('data', (d) => console.log(`[upscaler] ${d}`));
+            post.stderr.on('data', (d) => console.error(`[upscaler] ${d}`));
+    
+            post.on('close', (code2) => {
+              if (code2 === 0) {
+                console.log('Upscaling complete');
+                resolve();
+              } else {
+                reject(new Error(`Upscaler exited with code ${code2}`));
+              }
+            });
+          });
+        }
+    
+        // Read and send the (possibly post‑processed) image
+        const finalImg = await fs.promises.readFile(tempOutputPath);
+        res.type('png').send(finalImg);
       } catch (err) {
         res.status(500).json({error:'Failed to read image', err: err});
       } finally {
@@ -103,7 +159,7 @@ app.get('/', (req, res) => {
     console.log("server has started")
     // res.json({ message: path.join(__dirname, "../", "index.html") });
     res.sendFile("index.html"); // doesn't work without building (switch to public directory when in production)
-  });
+});
 
 // Start the server
 app.listen(SERVER_PORT, () => {
